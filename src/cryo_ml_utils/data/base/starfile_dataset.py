@@ -6,28 +6,25 @@ import numpy as np
 from skimage.transform import resize
 
 import warnings
+from collections import namedtuple
 
 try:
     from torch.utils.data import Dataset  # type: ignore
 except ImportError:
+
+    class Dataset:
+        pass
+
     print(
         "PyTorch not installed. Please install ml-utils with torch extras: pip install ml-utils[torch]"
     )
 
-from collections import namedtuple
-from typing import Union, Iterable
+from .particles import Particles
+from ...utils.ctf import correct_ctf
 
-Patch = namedtuple(
-    "Patch",
-    [
-        "micrograph_path",
-        "pixel_size",
-        "image_size",
-        "coordinate_x",
-        "coordinate_y",
-        "class_number",
-    ],
-)
+from typing import Union, Iterable, Optional
+
+
 Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
 
 
@@ -36,6 +33,7 @@ class StarfileDataset(Dataset):
     def __init__(
         self,
         paths: Iterable[os.PathLike],
+        ctf_correction: Optional[str] = "weiner",
         normalize_range=False,
         micrograph_transform=None,
     ):
@@ -43,24 +41,33 @@ class StarfileDataset(Dataset):
 
         self.normalize_range = normalize_range
         self.micrograph_transform = micrograph_transform
+        self.ctf_correction_mode = ctf_correction
 
         patches = []
         for path in paths:
             f = starfile.read(path)
 
-            optics = f["optics"].to_dict()
-            particles = f["particles"]
+            optics = f["optics"].to_dict()  # type: ignore
+            particles = f["particles"]  # type: ignore
 
             patches.extend(
-                Patch(
+                Particles(
                     self.compute_absolute_micrograph_path(row.rlnMicrographName, path),
-                    optics["rlnImagePixelSize"][0],
                     optics["rlnImageSize"][0],
+                    optics["rlnImagePixelSize"][0],
+                    row.rlnDefocusU,
+                    row.rlnDefocusV,
+                    row.rlnDefocusAngle,
+                    optics["rlnVoltage"][0],
+                    optics["rlnSphericalAberration"][0],
+                    optics["rlnAmplitudeContrast"][0],
+                    row.rlnPhaseShift,
+                    row.rlnCtfBfactor,
                     row.rlnCoordinateX,
                     row.rlnCoordinateY,
                     row.rlnClassNumber,
                 )
-                for _, row in particles.iterrows()
+                for _, row in particles.iterrows()  # type: ignore
             )
 
         self.patches = patches
@@ -70,8 +77,8 @@ class StarfileDataset(Dataset):
         def _compute_statistics(path):
             with mrcfile.open(path, permissive=True) as f:
                 data = f.data
-                mean = data.mean()
-                std = data.std()
+                mean = data.mean()  # type: ignore
+                std = data.std()  # type: ignore
 
                 return (mean, std)
 
@@ -95,7 +102,7 @@ class StarfileDataset(Dataset):
         #        max_y = patch.bounds.max_y
 
         # type: ignore
-        patch_image = file.data[min_y:max_y, bounds.min_x : bounds.max_x]
+        patch_image = file.data[min_y:max_y, bounds.min_x : bounds.max_x]  # type: ignore
         patch_image = np.array(patch_image, copy=True).astype(np.float32)
 
         file.close()
@@ -103,8 +110,6 @@ class StarfileDataset(Dataset):
         return patch_image
 
     def normalize_image(self, image_tensor):
-        # Ensure the tensor is float
-        image_tensor = image_tensor.float()
 
         # Get the min and max values of the tensor
         min_val = image_tensor.min()
@@ -119,10 +124,10 @@ class StarfileDataset(Dataset):
         return len(self.patches)
 
     def __getitem__(self, idx):
-        if self._stats is None:
-            self._stats = self.compute_micrograph_statistics()
+        # if self._stats is None:
+        #     self._stats = self.compute_micrograph_statistics()
 
-        particle: Patch = self.patches[idx]
+        particle: Particles = self.patches[idx]
         image_size = int(particle.image_size)  # * particle.pixel_size)
 
         origin_x = particle.coordinate_x - image_size // 2
@@ -143,11 +148,14 @@ class StarfileDataset(Dataset):
         except ImportError:
             pass
 
-        if self._stats is not None:
-            mean, std = self._stats[particle.micrograph_path]
-            image = (image - mean) / std
+        # if self._stats is not None:
+        #     mean, std = self._stats[particle.micrograph_path]
+        #     image = (image - mean) / std
 
-        if self.normalize_range:
+        if self.ctf_correction_mode is not None:
+            image = correct_ctf(image, particle)
+
+        if self.normalize_range == True:
             image = self.normalize_image(image)
 
         if self.micrograph_transform is not None:
@@ -157,7 +165,11 @@ class StarfileDataset(Dataset):
 
 
 if __name__ == "__main__":
-    STARFILE = "/home/mzoch/data/datasets/crypppp/extracted/10017/ground_truth/empiar-10017_particles_selected.star"
+    from pathlib import Path
+
+    STARFILE = Path(
+        "/home/mzoch/data/datasets/crypppp/extracted/10017/ground_truth/empiar-10017_particles_selected.star"
+    )
 
     ds = StarfileDataset([STARFILE])
     print(len(ds))

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ..base import starfile_dataset
 
-from typing import Iterable
+from typing import Iterable, Optional
 
 
 class CryoPPPDataset(starfile_dataset.StarfileDataset):
@@ -12,6 +12,7 @@ class CryoPPPDataset(starfile_dataset.StarfileDataset):
         self,
         root_dir: os.PathLike,
         datasets: Iterable[str],
+        ctf_correction: Optional[str] = "weiner",
         normalize_range=False,
         micrograph_transform=None,
     ):
@@ -22,7 +23,9 @@ class CryoPPPDataset(starfile_dataset.StarfileDataset):
             for d in datasets
         ]
 
-        super().__init__(starfiles, normalize_range, micrograph_transform)
+        super().__init__(
+            starfiles, ctf_correction, normalize_range, micrograph_transform
+        )
 
     def compute_absolute_micrograph_path(self, path: os.PathLike, star: os.PathLike):
 
@@ -39,7 +42,7 @@ if __name__ == "__main__":
 
     # 10017/ground_truth/empiar-10017_particles_selected.star
 
-    ds = CryoPPPDataset(ROOT_DIR, datasets=["10017"])
+    ds = CryoPPPDataset(ROOT_DIR, datasets=["10017"])  # type: ignore
     print(ds[0])
 
     # ds[0]
