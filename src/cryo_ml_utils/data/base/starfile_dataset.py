@@ -36,8 +36,13 @@ class StarfileDataset(Dataset):
     def __init__(
         self,
         paths: Iterable[os.PathLike],
+        normalize_range=False,
+        micrograph_transform=None,
     ):
         super().__init__()
+
+        self.normalize_range = normalize_range
+        self.micrograph_transform = micrograph_transform
 
         patches = []
         for path in paths:
@@ -91,11 +96,24 @@ class StarfileDataset(Dataset):
 
         # type: ignore
         patch_image = file.data[min_y:max_y, bounds.min_x : bounds.max_x]
-        patch_image = np.array(patch_image, copy=True)
+        patch_image = np.array(patch_image, copy=True).astype(np.float32)
 
         file.close()
 
         return patch_image
+
+    def normalize_image(self, image_tensor):
+        # Ensure the tensor is float
+        image_tensor = image_tensor.float()
+
+        # Get the min and max values of the tensor
+        min_val = image_tensor.min()
+        max_val = image_tensor.max()
+
+        # Normalize to [0, 1]
+        normalized_tensor = (image_tensor - min_val) / (max_val - min_val)
+
+        return normalized_tensor
 
     def __len__(self):
         return len(self.patches)
@@ -105,7 +123,7 @@ class StarfileDataset(Dataset):
             self._stats = self.compute_micrograph_statistics()
 
         particle: Patch = self.patches[idx]
-        image_size = int(particle.image_size * particle.pixel_size)
+        image_size = int(particle.image_size)  # * particle.pixel_size)
 
         origin_x = particle.coordinate_x - image_size // 2
         origin_y = particle.coordinate_y - image_size // 2
@@ -117,12 +135,23 @@ class StarfileDataset(Dataset):
         )
 
         image = self.get_patch_image(particle.micrograph_path, bounds)
-        image = resize(image, (particle.image_size, particle.image_size))
-        image = image[None, ...]
+        # image = resize(image, (particle.image_size, particle.image_size))
+        try:
+            import torch
+
+            image = torch.tensor(image[None, ...])
+        except ImportError:
+            pass
 
         if self._stats is not None:
             mean, std = self._stats[particle.micrograph_path]
             image = (image - mean) / std
+
+        if self.normalize_range:
+            image = self.normalize_image(image)
+
+        if self.micrograph_transform is not None:
+            image = self.micrograph_transform(image)
 
         return image, particle.class_number
 

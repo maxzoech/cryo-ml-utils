@@ -8,7 +8,13 @@ from typing import Iterable
 
 class CryoPPPDataset(starfile_dataset.StarfileDataset):
 
-    def __init__(self, root_dir: os.PathLike, datasets: Iterable[str]):
+    def __init__(
+        self,
+        root_dir: os.PathLike,
+        datasets: Iterable[str],
+        normalize_range=False,
+        micrograph_transform=None,
+    ):
         self.root_dir = Path(root_dir)
 
         starfiles = [
@@ -16,10 +22,10 @@ class CryoPPPDataset(starfile_dataset.StarfileDataset):
             for d in datasets
         ]
 
-        super().__init__(starfiles)
+        super().__init__(starfiles, normalize_range, micrograph_transform)
 
     def compute_absolute_micrograph_path(self, path: os.PathLike, star: os.PathLike):
-        # path = self.root_dir /
+
         micrograph_name = str(path).split("/")[-1]
         micrograph_name = "_".join(micrograph_name.split("_")[1:])
 
