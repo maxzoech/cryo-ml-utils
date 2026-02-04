@@ -77,24 +77,36 @@ def _get_2d_frequencies(img_size, sampling_rate):
 
 
 def correct_ctf(
-    image: ArrayLike, particle: Particles, *, wiener_parameter=0.15, mode="wiener"
+    image: ArrayLike,
+    sampling_rate,
+    defocus_u,
+    defocus_v,
+    defocus_angle,
+    voltage,
+    spherical_aberration,
+    amplitude_contrast_ratio,
+    phase_shift,
+    bfactor,
+    *,
+    wiener_parameter=0.15,
+    mode="wiener",
 ):
     assert mode in {"phase_flip", "wiener"}
 
     image = np.array(image)
     size = image.shape[-1]
 
-    freqs = _get_2d_frequencies(size, 1)
+    freqs = _get_2d_frequencies(size, sampling_rate)
     ctf = _compute_ctf(
         freqs,
-        particle.defocus_u,
-        particle.defocus_v,
-        particle.defocus_angle,
-        particle.voltage,
-        particle.spherical_aberration,
-        particle.amplitude_contrast_ratio,
-        particle.phase_shift,
-        particle.bfactor,
+        defocus_u,
+        defocus_v,
+        defocus_angle,
+        voltage,
+        spherical_aberration,
+        amplitude_contrast_ratio,
+        phase_shift,
+        bfactor,
     )
 
     ctf = np.reshape(ctf, [size, size])

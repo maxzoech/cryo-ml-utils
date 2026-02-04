@@ -33,7 +33,7 @@ class StarfileDataset(Dataset):
     def __init__(
         self,
         paths: Iterable[os.PathLike],
-        ctf_correction: Optional[str] = "weiner",
+        ctf_correction: Optional[str] = "wiener",
         normalize_range=False,
         micrograph_transform=None,
     ):
@@ -95,11 +95,15 @@ class StarfileDataset(Dataset):
 
         image_height: int = file.header["ny"]  # type: ignore
 
-        # We have to flip the image here: This is taken from https://github.com/BioinfoMachineLearning/cryoppp/issues/3
+        # # We have to flip the image here: This is taken from https://github.com/BioinfoMachineLearning/cryoppp/issues/3
+        # min_y = bounds.min_y
+        # max_y = bounds.max_y
+        # #        min_y = patch.bounds.min_y
+        # #        max_y = patch.bounds.max_y
+
+        # Inverted
         min_y = image_height - bounds.max_y  # patch.bounds.min_y
         max_y = image_height - bounds.min_y  # patch.bounds.max_y
-        #        min_y = patch.bounds.min_y
-        #        max_y = patch.bounds.max_y
 
         # type: ignore
         patch_image = file.data[min_y:max_y, bounds.min_x : bounds.max_x]  # type: ignore
@@ -141,19 +145,32 @@ class StarfileDataset(Dataset):
 
         image = self.get_patch_image(particle.micrograph_path, bounds)
         # image = resize(image, (particle.image_size, particle.image_size))
+
+        if self.ctf_correction_mode is not None:
+            image = correct_ctf(
+                image,
+                particle.pixel_size,
+                particle.defocus_u,
+                particle.defocus_v,
+                particle.defocus_angle,
+                particle.voltage,
+                particle.spherical_aberration,
+                particle.amplitude_contrast_ratio,
+                particle.phase_shift,
+                particle.bfactor,
+                mode=self.ctf_correction_mode,
+            )
+
         try:
             import torch
 
-            image = torch.tensor(image[None, ...])
+            image = torch.tensor(image[None, ...]).float()
         except ImportError:
             pass
 
         # if self._stats is not None:
         #     mean, std = self._stats[particle.micrograph_path]
         #     image = (image - mean) / std
-
-        if self.ctf_correction_mode is not None:
-            image = correct_ctf(image, particle)
 
         if self.normalize_range == True:
             image = self.normalize_image(image)
