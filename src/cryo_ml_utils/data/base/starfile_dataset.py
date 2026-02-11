@@ -3,7 +3,6 @@ import os
 import starfile
 import mrcfile
 import tempfile
-import shutil
 
 import numpy as np
 from skimage.transform import resize
@@ -38,7 +37,7 @@ class StarfileDataset(IterableDataset):
         shuffle=False,
         max_open_files=10,
         temp_dir=None,
-        copy_fn=shutil.copy,
+        copy_fn=None,
     ):
         super().__init__()
 
@@ -84,7 +83,6 @@ class StarfileDataset(IterableDataset):
         self.temp_dir = temp_dir
         self.copy_fn = copy_fn
 
-
     def compute_micrograph_statistics(self):
         def _compute_statistics(path):
             with mrcfile.open(path, permissive=True) as f:
@@ -110,13 +108,23 @@ class StarfileDataset(IterableDataset):
                 # Remove the least recently used file
                 _, old_file = self.file_buffer.popitem(last=False)
                 old_file.file.close()
-                os.remove(old_file.temp_path)
 
-            micrograph_cache = tempfile.NamedTemporaryFile(delete=False, dir=self.temp_dir)
-            self.copy_fn(path, micrograph_cache.name)
+                if old_file.temp_path is not None:
+                    os.remove(old_file.temp_path)
 
-            file = mrcfile.open(micrograph_cache.name, permissive=True)
-            cached = CachedMicrograph(file, micrograph_cache.name)
+            if self.copy_fn is not None:
+                micrograph_cache = tempfile.NamedTemporaryFile(
+                    delete=False, dir=self.temp_dir, suffix=".mrc"
+                )
+                self.copy_fn(path, micrograph_cache.name)
+
+                file_path = micrograph_cache.name
+            else:
+                micrograph_cache = None
+                file_path = path
+
+            file = mrcfile.mmap(file_path, permissive=True)
+            cached = CachedMicrograph(file, file_path)
 
             self.file_buffer[path] = cached
 
