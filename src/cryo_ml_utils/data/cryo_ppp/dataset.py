@@ -12,9 +12,11 @@ class CryoPPPDataset(starfile_dataset.StarfileDataset):
         self,
         root_dir: os.PathLike,
         datasets: Iterable[str],
-        ctf_correction: Optional[str] = "weiner",
+        ctf_correction: Optional[str] = "wiener",
         normalize_range=False,
         micrograph_transform=None,
+        *args,
+        **kwargs,
     ):
         self.root_dir = Path(root_dir)
 
@@ -24,7 +26,12 @@ class CryoPPPDataset(starfile_dataset.StarfileDataset):
         ]
 
         super().__init__(
-            starfiles, ctf_correction, normalize_range, micrograph_transform
+            starfiles,
+            ctf_correction,
+            normalize_range,
+            micrograph_transform,
+            *args,
+            **kwargs,
         )
 
     def compute_absolute_micrograph_path(self, path: os.PathLike, star: os.PathLike):

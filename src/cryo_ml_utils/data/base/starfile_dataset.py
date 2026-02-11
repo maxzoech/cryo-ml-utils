@@ -5,19 +5,13 @@ import mrcfile
 import numpy as np
 from skimage.transform import resize
 
+import random
 import warnings
 from collections import namedtuple
+from itertools import groupby, chain
 
-try:
-    from torch.utils.data import Dataset  # type: ignore
-except ImportError:
-
-    class Dataset:
-        pass
-
-    print(
-        "PyTorch not installed. Please install ml-utils with torch extras: pip install ml-utils[torch]"
-    )
+import torch
+from torch.utils.data import IterableDataset
 
 from .particles import Particles
 from ...utils.ctf import correct_ctf
@@ -28,7 +22,7 @@ from typing import Union, Iterable, Optional
 Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
 
 
-class StarfileDataset(Dataset):
+class StarfileDataset(IterableDataset):
 
     def __init__(
         self,
@@ -36,12 +30,15 @@ class StarfileDataset(Dataset):
         ctf_correction: Optional[str] = "wiener",
         normalize_range=False,
         micrograph_transform=None,
+        shuffle=False,
     ):
         super().__init__()
 
         self.normalize_range = normalize_range
         self.micrograph_transform = micrograph_transform
         self.ctf_correction_mode = ctf_correction
+
+        self.shuffle = shuffle
 
         patches = []
         for path in paths:
@@ -124,15 +121,9 @@ class StarfileDataset(Dataset):
 
         return normalized_tensor
 
-    def __len__(self):
-        return len(self.patches)
-
-    def __getitem__(self, idx):
-        # if self._stats is None:
-        #     self._stats = self.compute_micrograph_statistics()
-
-        particle: Particles = self.patches[idx]
-        image_size = int(particle.image_size)  # * particle.pixel_size)
+    def fetch_patch(self, particle: Particles):
+        
+        image_size = int(particle.image_size)
 
         origin_x = particle.coordinate_x - image_size // 2
         origin_y = particle.coordinate_y - image_size // 2
@@ -144,7 +135,6 @@ class StarfileDataset(Dataset):
         )
 
         image = self.get_patch_image(particle.micrograph_path, bounds)
-        # image = resize(image, (particle.image_size, particle.image_size))
 
         if self.ctf_correction_mode is not None:
             image = correct_ctf(
@@ -161,16 +151,7 @@ class StarfileDataset(Dataset):
                 mode=self.ctf_correction_mode,
             )
 
-        try:
-            import torch
-
-            image = torch.tensor(image[None, ...]).float()
-        except ImportError:
-            pass
-
-        # if self._stats is not None:
-        #     mean, std = self._stats[particle.micrograph_path]
-        #     image = (image - mean) / std
+        image = torch.tensor(image[None, ...]).float()
 
         if self.normalize_range == True:
             image = self.normalize_image(image)
@@ -179,6 +160,28 @@ class StarfileDataset(Dataset):
             image = self.micrograph_transform(image)
 
         return image, particle.class_number
+    
+    def __len__(self):
+        return len(self.patches)
+    
+    def __iter__(self):
+        
+        sorted_patches = sorted(self.patches, key=lambda x: x.micrograph_path)
+        grouped_patches = [list(v) for _, v in groupby(sorted_patches, key=lambda x: x.micrograph_path)]
+
+        if self.shuffle:
+            random.shuffle(grouped_patches)
+            for group in grouped_patches:
+                random.shuffle(group)
+        
+        patches = chain.from_iterable(grouped_patches)
+
+        def _particles_generator():
+            for patch in patches:
+                yield self.fetch_patch(patch)
+
+        return _particles_generator()
+        
 
 
 if __name__ == "__main__":
@@ -190,3 +193,5 @@ if __name__ == "__main__":
 
     ds = StarfileDataset([STARFILE])
     print(len(ds))
+
+    iter(ds)

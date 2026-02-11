@@ -10,12 +10,8 @@ requires-python = ">=3.11,<3.15"
 dependencies = [
     "starfile (>=0.5.13,<0.6.0)",
     "mrcfile (>=1.5.4,<2.0.0)",
+    "torch (>=2.9.0,<3.0.0)",
 ]
-
-torch = { version = "(>=2.9.0,<3.0.0)", optional = true }
-
-[tool.poetry.extras]
-torch = ["torch"]
 
 [tool.poetry]
 packages = [{include = "cryo_ml_utils", from = "src"}]
