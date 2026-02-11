@@ -1,13 +1,17 @@
+from copy import deepcopy
 import os
 import starfile
 import mrcfile
+import tempfile
+import shutil
 
 import numpy as np
 from skimage.transform import resize
 
 import random
+import math
 import warnings
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from itertools import groupby, chain
 
 import torch
@@ -20,6 +24,7 @@ from typing import Union, Iterable, Optional
 
 
 Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
+CachedMicrograph = namedtuple("CachedMicrograph", ["file", "temp_path"])
 
 
 class StarfileDataset(IterableDataset):
@@ -31,6 +36,9 @@ class StarfileDataset(IterableDataset):
         normalize_range=False,
         micrograph_transform=None,
         shuffle=False,
+        max_open_files=10,
+        temp_dir=None,
+        copy_fn=shutil.copy,
     ):
         super().__init__()
 
@@ -70,6 +78,13 @@ class StarfileDataset(IterableDataset):
         self.patches = patches
         self._stats = None
 
+        self.file_buffer = OrderedDict()
+
+        self.max_open_files = max_open_files
+        self.temp_dir = temp_dir
+        self.copy_fn = copy_fn
+
+
     def compute_micrograph_statistics(self):
         def _compute_statistics(path):
             with mrcfile.open(path, permissive=True) as f:
@@ -85,10 +100,30 @@ class StarfileDataset(IterableDataset):
     def compute_absolute_micrograph_path(self, path: os.PathLike, star: os.PathLike):
         return path
 
+    def _get_cached_micrograph(self, path: os.PathLike):
+        if path in self.file_buffer:
+            cached = self.file_buffer[path]
+            # Move the accessed file to the end to mark it as recently used
+            self.file_buffer.move_to_end(path)
+        else:
+            if len(self.file_buffer) >= self.max_open_files:
+                # Remove the least recently used file
+                _, old_file = self.file_buffer.popitem(last=False)
+                old_file.file.close()
+                os.remove(old_file.temp_path)
+
+            micrograph_cache = tempfile.NamedTemporaryFile(delete=False, dir=self.temp_dir)
+            self.copy_fn(path, micrograph_cache.name)
+
+            file = mrcfile.open(micrograph_cache.name, permissive=True)
+            cached = CachedMicrograph(file, micrograph_cache.name)
+
+            self.file_buffer[path] = cached
+
+        return cached
+
     def get_patch_image(self, path: os.PathLike, bounds: Bounds):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            file = mrcfile.mmap(path, mode="r+", permissive=True)
+        file = self._get_cached_micrograph(path).file
 
         image_height: int = file.header["ny"]  # type: ignore
 
@@ -106,8 +141,6 @@ class StarfileDataset(IterableDataset):
         patch_image = file.data[min_y:max_y, bounds.min_x : bounds.max_x]  # type: ignore
         patch_image = np.array(patch_image, copy=True).astype(np.float32)
 
-        file.close()
-
         return patch_image
 
     def normalize_image(self, image_tensor):
@@ -122,7 +155,7 @@ class StarfileDataset(IterableDataset):
         return normalized_tensor
 
     def fetch_patch(self, particle: Particles):
-        
+
         image_size = int(particle.image_size)
 
         origin_x = particle.coordinate_x - image_size // 2
@@ -160,28 +193,41 @@ class StarfileDataset(IterableDataset):
             image = self.micrograph_transform(image)
 
         return image, particle.class_number
-    
-    def __len__(self):
-        return len(self.patches)
-    
-    def __iter__(self):
-        
-        sorted_patches = sorted(self.patches, key=lambda x: x.micrograph_path)
-        grouped_patches = [list(v) for _, v in groupby(sorted_patches, key=lambda x: x.micrograph_path)]
 
-        if self.shuffle:
-            random.shuffle(grouped_patches)
-            for group in grouped_patches:
-                random.shuffle(group)
-        
-        patches = chain.from_iterable(grouped_patches)
+    # def __len__(self):
+    #     worker_info = torch.utils.data.get_worker_info()
+    #     num_workers = worker_info.num_workers if worker_info is not None else 1
+
+    #     per_worker = int(math.ceil(len(self.patches) / num_workers))
+
+    #     return per_worker * num_workers
+
+    def __iter__(self):
+
+        grouped_patches = [
+            list(v) for _, v in groupby(self.patches, key=lambda x: x.micrograph_path)
+        ]
+
+        patches = list(chain.from_iterable(grouped_patches))
+
+        # Split workload between workers
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is not None:
+            per_worker = int(
+                math.ceil(float(len(patches)) / float(worker_info.num_workers))
+            )
+            worker_id = worker_info.id
+
+            iter_start = worker_id * per_worker
+            iter_end = min(iter_start + per_worker, len(self.patches))
+
+            patches = patches[iter_start:iter_end]
 
         def _particles_generator():
             for patch in patches:
                 yield self.fetch_patch(patch)
 
         return _particles_generator()
-        
 
 
 if __name__ == "__main__":
