@@ -14,7 +14,7 @@ from collections import namedtuple, OrderedDict
 from itertools import groupby, chain
 
 import torch
-from torch.utils.data import IterableDataset
+from torch.utils.data import IterableDataset, Dataset
 
 from .particles import Particles
 from ...utils.ctf import correct_ctf
@@ -26,7 +26,7 @@ Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
 CachedMicrograph = namedtuple("CachedMicrograph", ["file", "temp_path"])
 
 
-class StarfileDataset(IterableDataset):
+class StarfileDataset(Dataset):
 
     def __init__(
         self,
@@ -110,21 +110,22 @@ class StarfileDataset(IterableDataset):
                 old_file.file.close()
 
                 if old_file.temp_path is not None:
-                    os.remove(old_file.temp_path)
+                    assert not str(old_file.temp_path).endswith(".mrc"), "Temporary files should not end with .mrc"
+                    # os.remove(old_file.temp_path)
 
             if self.copy_fn is not None:
                 micrograph_cache = tempfile.NamedTemporaryFile(
-                    delete=False, dir=self.temp_dir, suffix=".mrc"
+                    delete=False, dir=self.temp_dir
                 )
                 self.copy_fn(path, micrograph_cache.name)
 
-                file_path = micrograph_cache.name
+                micrograph_cache = micrograph_cache.name
             else:
                 micrograph_cache = None
                 file_path = path
 
             file = mrcfile.mmap(file_path, permissive=True)
-            cached = CachedMicrograph(file, file_path)
+            cached = CachedMicrograph(file, micrograph_cache)
 
             self.file_buffer[path] = cached
 
@@ -209,6 +210,9 @@ class StarfileDataset(IterableDataset):
     #     per_worker = int(math.ceil(len(self.patches) / num_workers))
 
     #     return per_worker * num_workers
+    
+    # def __getitem__(self, index):
+    #     return self.fetch_patch(self.patches[index])
 
     def __iter__(self):
 
