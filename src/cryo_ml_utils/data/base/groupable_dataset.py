@@ -59,6 +59,21 @@ class GroupableDataset(IterableDataset, Generic[Index], metaclass=ABCMeta):
             indices = indices[iter_start:iter_end]
 
         return self.__element_iter__(indices)
+    
+
+class GroupedSubset(GroupableDataset):
+
+    def __init__(self, dataset: GroupableDataset[Index], groups: Iterable[Index]):
+        super().__init__()
+
+        self.dataset = dataset
+        self.groups = groups
+
+    def __groups__(self):
+        return self.groups
+    
+    def __element_iter__(self, indices):
+        return self.dataset.__element_iter__(indices)
 
 
 def random_split_groups(dataset: GroupableDataset, lengths, generator=None):
@@ -66,6 +81,13 @@ def random_split_groups(dataset: GroupableDataset, lengths, generator=None):
     The groups are kept intact, i.e. all samples from a group are assigned to the same split.
     """
 
-    groups = list(dataset.__groups__)
+    def _get_particles(groups, *, indices: Iterable[int]):
+        return [groups[i] for i in indices]
+
+    groups = list(dataset.__groups__())
     group_lengths = [len(group) for group in groups]
-    group_splits = random_split(group_lengths, lengths, generator)
+    indices_subgroups = random_split(group_lengths, lengths, generator)
+
+    group_splits = [_get_particles(groups, indices=i) for i in indices_subgroups]
+
+    return (GroupedSubset(dataset, group) for group in group_splits)

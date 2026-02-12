@@ -217,41 +217,6 @@ class StarfileDataset(GroupableDataset[Particles]):
 
         return _particles_generator()
 
-    # def __len__(self):
-    #     worker_info = torch.utils.data.get_worker_info()
-    #     num_workers = worker_info.num_workers if worker_info is not None else 1
-
-    #     per_worker = int(math.ceil(len(self.patches) / num_workers))
-
-    #     return per_worker * num_workers
-
-    # def __iter__(self):
-
-    #     grouped_patches = [
-    #         list(v) for _, v in groupby(self.patches, key=lambda x: x.micrograph_path)
-    #     ]
-
-    #     patches = list(chain.from_iterable(grouped_patches))
-
-    #     # Split workload between workers
-    #     worker_info = torch.utils.data.get_worker_info()
-    #     if worker_info is not None:
-    #         per_worker = int(
-    #             math.ceil(float(len(patches)) / float(worker_info.num_workers))
-    #         )
-    #         worker_id = worker_info.id
-
-    #         iter_start = worker_id * per_worker
-    #         iter_end = min(iter_start + per_worker, len(self.patches))
-
-    #         patches = patches[iter_start:iter_end]
-
-    #     def _particles_generator():
-    #         for patch in patches:
-    #             yield self.fetch_patch(patch)
-
-    #     return _particles_generator()
-
 
 if __name__ == "__main__":
     from pathlib import Path
