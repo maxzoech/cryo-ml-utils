@@ -25,7 +25,6 @@ from typing import Union, Iterable, Optional
 
 
 Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
-CachedMicrograph = namedtuple("CachedMicrograph", ["file", "temp_path"])
 
 
 class StarfileDataset(GroupableDataset[Particles]):
@@ -102,41 +101,34 @@ class StarfileDataset(GroupableDataset[Particles]):
 
     def _get_cached_micrograph(self, path: os.PathLike):
         if path in self.file_buffer:
-            cached = self.file_buffer[path]
+            file = self.file_buffer[path]
             # Move the accessed file to the end to mark it as recently used
             self.file_buffer.move_to_end(path)
         else:
             if len(self.file_buffer) >= self.max_open_files:
                 # Remove the least recently used file
                 _, old_file = self.file_buffer.popitem(last=False)
-                old_file.file.close()
-
-                if old_file.temp_path is not None:
-                    assert not str(old_file.temp_path).endswith(".mrc"), "Temporary files should not end with .mrc"
-                    if os.path.exists(old_file.temp_path):
-                        os.remove(old_file.temp_path) # Memory files do not exist after they are closed
+                old_file.close()
 
             if self.copy_fn is not None:
                 micrograph_cache = tempfile.NamedTemporaryFile(
-                    delete=False, dir=self.temp_dir
+                    delete=True, dir=self.temp_dir
                 )
-                self.copy_fn(path, micrograph_cache.name)
 
                 micrograph_cache = micrograph_cache.name
+                self.copy_fn(path, micrograph_cache)
                 file_path = micrograph_cache
             else:
                 micrograph_cache = None
                 file_path = path
 
             file = mrcfile.mmap(file_path, permissive=True)
-            cached = CachedMicrograph(file, micrograph_cache)
+            self.file_buffer[path] = file
 
-            self.file_buffer[path] = cached
-
-        return cached
+        return file
 
     def get_patch_image(self, path: os.PathLike, bounds: Bounds):
-        file = self._get_cached_micrograph(path).file
+        file = self._get_cached_micrograph(path)
 
         image_height: int = file.header["ny"]  # type: ignore
 
