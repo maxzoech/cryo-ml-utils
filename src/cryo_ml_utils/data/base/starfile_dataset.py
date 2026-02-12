@@ -3,6 +3,7 @@ import os
 import starfile
 import mrcfile
 import tempfile
+import shutil
 
 import numpy as np
 from skimage.transform import resize
@@ -50,7 +51,11 @@ class StarfileDataset(GroupableDataset[Particles]):
 
         patches = []
         for path in paths:
-            f = starfile.read(path)
+            with tempfile.NamedTemporaryFile(dir="/dev/shm", suffix=".star.cached") as temp:
+                copy_fn = copy_fn if copy_fn is None else shutil.copy
+                copy_fn(path, temp.name)
+                
+                f = starfile.read(temp.name)
 
             optics = f["optics"].to_dict()  # type: ignore
             particles = f["particles"]  # type: ignore
@@ -115,11 +120,9 @@ class StarfileDataset(GroupableDataset[Particles]):
                     delete=True, dir=self.temp_dir
                 )
 
-                micrograph_cache = micrograph_cache.name
-                self.copy_fn(path, micrograph_cache)
-                file_path = micrograph_cache
+                file_path = micrograph_cache.name
+                self.copy_fn(path, file_path)
             else:
-                micrograph_cache = None
                 file_path = path
 
             file = mrcfile.mmap(file_path, permissive=True)
