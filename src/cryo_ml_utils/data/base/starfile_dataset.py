@@ -16,6 +16,8 @@ from itertools import groupby, chain
 import torch
 from torch.utils.data import IterableDataset, Dataset
 
+from cryo_ml_utils.data.base.groupable_dataset import GroupableDataset
+
 from .particles import Particles
 from ...utils.ctf import correct_ctf
 
@@ -26,7 +28,7 @@ Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
 CachedMicrograph = namedtuple("CachedMicrograph", ["file", "temp_path"])
 
 
-class StarfileDataset(Dataset):
+class StarfileDataset(GroupableDataset[Particles]):
 
     def __init__(
         self,
@@ -35,7 +37,7 @@ class StarfileDataset(Dataset):
         normalize_range=False,
         micrograph_transform=None,
         shuffle=False,
-        max_open_files=10,
+        max_open_files=2,
         temp_dir=None,
         copy_fn=None,
     ):
@@ -111,7 +113,8 @@ class StarfileDataset(Dataset):
 
                 if old_file.temp_path is not None:
                     assert not str(old_file.temp_path).endswith(".mrc"), "Temporary files should not end with .mrc"
-                    # os.remove(old_file.temp_path)
+                    if os.path.exists(old_file.temp_path):
+                        os.remove(old_file.temp_path) # Memory files do not exist after they are closed
 
             if self.copy_fn is not None:
                 micrograph_cache = tempfile.NamedTemporaryFile(
@@ -120,6 +123,7 @@ class StarfileDataset(Dataset):
                 self.copy_fn(path, micrograph_cache.name)
 
                 micrograph_cache = micrograph_cache.name
+                file_path = micrograph_cache
             else:
                 micrograph_cache = None
                 file_path = path
@@ -203,6 +207,16 @@ class StarfileDataset(Dataset):
 
         return image, particle.class_number
 
+    def __groups__(self):
+        return [list(v) for _, v in groupby(self.patches, key=lambda x: x.micrograph_path)]
+
+    def __element_iter__(self, indices: Iterable[int]) -> Iterable[Union[torch.Tensor, int]]:
+        def _particles_generator():
+            for index in indices:
+                yield self.fetch_patch(index)
+
+        return _particles_generator()
+
     # def __len__(self):
     #     worker_info = torch.utils.data.get_worker_info()
     #     num_workers = worker_info.num_workers if worker_info is not None else 1
@@ -210,36 +224,33 @@ class StarfileDataset(Dataset):
     #     per_worker = int(math.ceil(len(self.patches) / num_workers))
 
     #     return per_worker * num_workers
-    
-    # def __getitem__(self, index):
-    #     return self.fetch_patch(self.patches[index])
 
-    def __iter__(self):
+    # def __iter__(self):
 
-        grouped_patches = [
-            list(v) for _, v in groupby(self.patches, key=lambda x: x.micrograph_path)
-        ]
+    #     grouped_patches = [
+    #         list(v) for _, v in groupby(self.patches, key=lambda x: x.micrograph_path)
+    #     ]
 
-        patches = list(chain.from_iterable(grouped_patches))
+    #     patches = list(chain.from_iterable(grouped_patches))
 
-        # Split workload between workers
-        worker_info = torch.utils.data.get_worker_info()
-        if worker_info is not None:
-            per_worker = int(
-                math.ceil(float(len(patches)) / float(worker_info.num_workers))
-            )
-            worker_id = worker_info.id
+    #     # Split workload between workers
+    #     worker_info = torch.utils.data.get_worker_info()
+    #     if worker_info is not None:
+    #         per_worker = int(
+    #             math.ceil(float(len(patches)) / float(worker_info.num_workers))
+    #         )
+    #         worker_id = worker_info.id
 
-            iter_start = worker_id * per_worker
-            iter_end = min(iter_start + per_worker, len(self.patches))
+    #         iter_start = worker_id * per_worker
+    #         iter_end = min(iter_start + per_worker, len(self.patches))
 
-            patches = patches[iter_start:iter_end]
+    #         patches = patches[iter_start:iter_end]
 
-        def _particles_generator():
-            for patch in patches:
-                yield self.fetch_patch(patch)
+    #     def _particles_generator():
+    #         for patch in patches:
+    #             yield self.fetch_patch(patch)
 
-        return _particles_generator()
+    #     return _particles_generator()
 
 
 if __name__ == "__main__":
