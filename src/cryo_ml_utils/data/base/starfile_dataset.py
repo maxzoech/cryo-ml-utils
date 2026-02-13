@@ -52,7 +52,7 @@ class StarfileDataset(GroupableDataset[Particles]):
         patches = []
         for path in paths:
             with tempfile.NamedTemporaryFile(dir="/dev/shm", suffix=".star.cached") as temp:
-                copy_fn = copy_fn if copy_fn is None else shutil.copy
+                copy_fn = copy_fn if copy_fn is not None else shutil.copy
                 copy_fn(path, temp.name)
                 
                 f = starfile.read(temp.name)
