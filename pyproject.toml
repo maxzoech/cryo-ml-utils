@@ -1,7 +1,7 @@
 [project]
 name = "cryo-ml-utils"
 version = "0.1.0"
-description = ""
+description = "Utility functions for CryoEM"
 authors = [
     {name = "Maximilian Zoech",email = "maximilian.zoech@cnb.csic.es"}
 ]
