@@ -1,20 +1,17 @@
-[project]
+[tool.poetry]
 name = "cryo_ml_utils"
 version = "0.1.0"
 description = "Utility functions for CryoEM"
-authors = [
-    {name = "Maximilian Zoech",email = "maximilian.zoech@cnb.csic.es"}
-]
+authors = ["Maximilian Zoech <maximilian.zoech@cnb.csic.es>"]
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = [
-    "starfile (>=0.4.10,<0.6.0)",
-    "mrcfile (>=1.5.4,<2.0.0)",
-    # "torch (>=2.9.0,<3.0.0)",
-]
-
-[tool.poetry]
 packages = [{include = "cryo_ml_utils", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.9"
+starfile = ">=0.4.10,<0.6.0"
+mrcfile = ">=1.5.4,<2.0.0"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
