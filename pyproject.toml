@@ -8,7 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
-    "starfile (>=0.5.13,<0.6.0)",
+    "starfile (>=0.4.10,<0.6.0)",
     "mrcfile (>=1.5.4,<2.0.0)",
     # "torch (>=2.9.0,<3.0.0)",
 ]
