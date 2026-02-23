@@ -28,7 +28,7 @@ from typing import Union, Iterable, Optional
 Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
 
 
-class StarfileDataset(GroupableDataset[Particles]):
+class StarfileDataset(Dataset):
 
     def __init__(
         self,
@@ -125,7 +125,7 @@ class StarfileDataset(GroupableDataset[Particles]):
             else:
                 file_path = path
 
-            file = mrcfile.mmap(file_path, permissive=True)
+            file = mrcfile.open(file_path, permissive=True)
             self.file_buffer[path] = file
 
         return file
@@ -201,16 +201,23 @@ class StarfileDataset(GroupableDataset[Particles]):
             image = self.micrograph_transform(image)
 
         return image, particle.class_number
+    
+    def __len__(self):
+        return len(self.patches)
+    
+    def __getitem__(self, index):
+        particle = self.patches[index]
+        return self.fetch_patch(particle)
 
-    def __groups__(self):
-        return [list(v) for _, v in groupby(self.patches, key=lambda x: x.micrograph_path)]
+    # def __groups__(self):
+    #     return [list(v) for _, v in groupby(self.patches, key=lambda x: x.micrograph_path)]
 
-    def __element_iter__(self, indices: Iterable[int]) -> Iterable[Union[torch.Tensor, int]]:
-        def _particles_generator():
-            for index in indices:
-                yield self.fetch_patch(index)
+    # def __element_iter__(self, indices: Iterable[int]) -> Iterable[Union[torch.Tensor, int]]:
+    #     def _particles_generator():
+    #         for index in indices:
+    #             yield self.fetch_patch(index)
 
-        return _particles_generator()
+    #     return _particles_generator()
 
 
 if __name__ == "__main__":

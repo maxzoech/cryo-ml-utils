@@ -44,9 +44,11 @@ class GroupableDataset(IterableDataset, Generic[Index], metaclass=ABCMeta):
 
     def __iter__(self):
 
+        # print("Get flat indices")
         indices = self._flat_indices()
 
         # Split workload between workers
+        # print("Get worker info")
         worker_info = torch.utils.data.get_worker_info()
 
         if worker_info is not None:
@@ -56,9 +58,13 @@ class GroupableDataset(IterableDataset, Generic[Index], metaclass=ABCMeta):
             iter_start = worker_id * per_worker
             iter_end = min(iter_start + per_worker, len(indices))
 
+            # print("Slice indices")
             indices = indices[iter_start:iter_end]
 
-        return self.__element_iter__(indices)
+        # print("Create element iterator")
+        itr = self.__element_iter__(indices)
+        # print("Iterator generated")
+        return itr
     
 
 class GroupedSubset(GroupableDataset):

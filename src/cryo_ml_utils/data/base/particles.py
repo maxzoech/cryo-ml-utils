@@ -18,3 +18,5 @@ class Particles:
     coordinate_x: float
     coordinate_y: float
     class_number: int
+    empiar_id: str
+    index: str
