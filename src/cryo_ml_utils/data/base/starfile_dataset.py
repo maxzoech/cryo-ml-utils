@@ -27,6 +27,8 @@ from typing import Union, Iterable, Optional
 
 Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
 
+class Dataset:
+    pass
 
 class StarfileDataset(Dataset):
 
