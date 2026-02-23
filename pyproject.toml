@@ -1,5 +1,5 @@
 [project]
-name = "cryo-ml-utils"
+name = "cryo_ml_utils"
 version = "0.1.0"
 description = "Utility functions for CryoEM"
 authors = [
