@@ -2,8 +2,8 @@ import math
 from itertools import chain
 from abc import ABCMeta, abstractmethod
 
-import torch
-from torch.utils.data import random_split, IterableDataset
+# import torch
+# from torch.utils.data import random_split, IterableDataset
 from functools import cache
 
 from typing import Iterable, Generic, TypeVar, Iterator
@@ -11,6 +11,8 @@ from typing import Iterable, Generic, TypeVar, Iterator
 Index = TypeVar("Index")
 Element = TypeVar("Element")
 
+class IterableDataset:
+    pass
 
 class GroupableDataset(IterableDataset, Generic[Index], metaclass=ABCMeta):
     """A mixin for datasets that can be grouped by a certain key.

@@ -14,8 +14,8 @@ import warnings
 from collections import namedtuple, OrderedDict
 from itertools import groupby, chain
 
-import torch
-from torch.utils.data import IterableDataset, Dataset
+# import torch
+# from torch.utils.data import IterableDataset, Dataset
 
 from cryo_ml_utils.data.base.groupable_dataset import GroupableDataset
 
