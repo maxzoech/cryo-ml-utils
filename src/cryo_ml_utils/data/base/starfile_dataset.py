@@ -22,7 +22,7 @@ from cryo_ml_utils.data.base.groupable_dataset import GroupableDataset
 from .particles import Particles
 from ...utils.ctf import correct_ctf
 
-from typing import Union, Iterable, Optional
+from typing import Union, Iterable, Optional, Literal
 
 
 Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
@@ -35,7 +35,7 @@ class StarfileDataset(Dataset):
     def __init__(
         self,
         paths: Iterable[os.PathLike],
-        ctf_correction: Optional[str] = "wiener",
+        ctf_correction: Optional[Literal["wiener", "phase_flip"]] = "wiener",
         normalize_range=False,
         micrograph_transform=None,
         shuffle=False,
