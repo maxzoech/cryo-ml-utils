@@ -4,14 +4,13 @@ version = "0.1.0"
 description = "Utility functions for CryoEM"
 authors = ["Maximilian Zoech <maximilian.zoech@cnb.csic.es>"]
 readme = "README.md"
-requires-python = ">=3.9"
 packages = [{include = "cryo_ml_utils", from = "src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.7"
+python = ">=3.11"
 starfile = ">=0.4.10,<0.6.0"
 mrcfile = ">=1.5.4,<2.0.0"
-
+scikit-image = ">=0.26.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

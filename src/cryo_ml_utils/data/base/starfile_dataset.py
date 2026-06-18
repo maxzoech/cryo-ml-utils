@@ -39,9 +39,6 @@ class StarfileDataset(Dataset):
         normalize_range=False,
         micrograph_transform=None,
         shuffle=False,
-        max_open_files=2,
-        temp_dir=None,
-        copy_fn=None,
     ):
         super().__init__()
 
@@ -53,11 +50,7 @@ class StarfileDataset(Dataset):
 
         patches = []
         for path in paths:
-            with tempfile.NamedTemporaryFile(dir="/dev/shm", suffix=".star.cached") as temp:
-                copy_fn = copy_fn if copy_fn is not None else shutil.copy
-                copy_fn(path, temp.name)
-                
-                f = starfile.read(temp.name)
+            f = starfile.read(path)                
 
             optics = f["optics"].to_dict()  # type: ignore
             particles = f["particles"]  # type: ignore
@@ -86,10 +79,6 @@ class StarfileDataset(Dataset):
         self._stats = None
 
         self.file_buffer = OrderedDict()
-
-        self.max_open_files = max_open_files
-        self.temp_dir = temp_dir
-        self.copy_fn = copy_fn
 
     def compute_micrograph_statistics(self):
         def _compute_statistics(path):
