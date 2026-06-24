@@ -71,6 +71,8 @@ class StarfileDataset(Dataset):
                     row.rlnCoordinateX,
                     row.rlnCoordinateY,
                     row.rlnClassNumber,
+                    None,
+                    None,
                 )
                 for _, row in particles.iterrows()  # type: ignore
             )
@@ -95,35 +97,8 @@ class StarfileDataset(Dataset):
     def compute_absolute_micrograph_path(self, path: os.PathLike, star: os.PathLike):
         return path
 
-    def _get_cached_micrograph(self, path: os.PathLike):
-        if path in self.file_buffer:
-            file = self.file_buffer[path]
-            # Move the accessed file to the end to mark it as recently used
-            self.file_buffer.move_to_end(path)
-        else:
-            if len(self.file_buffer) >= self.max_open_files:
-                # Remove the least recently used file
-                _, old_file = self.file_buffer.popitem(last=False)
-                old_file.close()
-
-            if self.copy_fn is not None:
-                micrograph_cache = tempfile.NamedTemporaryFile(
-                    delete=True, dir=self.temp_dir
-                )
-
-                file_path = micrograph_cache.name
-                self.copy_fn(path, file_path)
-            else:
-                file_path = path
-
-            file = mrcfile.open(file_path, permissive=True)
-            self.file_buffer[path] = file
-
-        return file
-
     def get_patch_image(self, path: os.PathLike, bounds: Bounds):
-        file = self._get_cached_micrograph(path)
-
+        file = mrcfile.mmap(path, permissive=True)
         image_height: int = file.header["ny"]  # type: ignore
 
         # # We have to flip the image here: This is taken from https://github.com/BioinfoMachineLearning/cryoppp/issues/3
@@ -183,7 +158,12 @@ class StarfileDataset(Dataset):
                 mode=self.ctf_correction_mode,
             )
 
-        image = torch.tensor(image[None, ...]).float()
+        image = image[None, ...]
+        try:
+            import torch
+            image = torch.tensor(image).float()
+        except ImportError:
+            pass
 
         if self.normalize_range == True:
             image = self.normalize_image(image)
