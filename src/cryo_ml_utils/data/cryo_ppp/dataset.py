@@ -1,12 +1,12 @@
 import os
 from pathlib import Path
 
-from ..base import starfile_dataset
+from ..base import micrograph_dataset
 
 from typing import Iterable, Optional
 
 
-class CryoPPPDataset(starfile_dataset.StarfileDataset):
+class CryoPPPDataset(micrograph_dataset.MicrographDataset):
 
     def __init__(
         self,

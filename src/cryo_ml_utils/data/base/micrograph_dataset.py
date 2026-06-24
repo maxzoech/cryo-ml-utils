@@ -14,8 +14,6 @@ import warnings
 from collections import namedtuple, OrderedDict
 from itertools import groupby, chain
 
-# import torch
-# from torch.utils.data import IterableDataset, Dataset
 
 from cryo_ml_utils.data.base.groupable_dataset import GroupableDataset
 
@@ -24,13 +22,15 @@ from ...utils.ctf import correct_ctf
 
 from typing import Union, Iterable, Optional, Literal
 
+try:
+    from torch.utils.data import Dataset
+except ImportError:
+    class Dataset:
+        pass
 
 Bounds = namedtuple("Bounds", ["min_x", "min_y", "max_x", "max_y"])
 
-class Dataset:
-    pass
-
-class StarfileDataset(Dataset):
+class MicrographDataset(Dataset):
 
     def __init__(
         self,
@@ -198,7 +198,7 @@ if __name__ == "__main__":
         "/home/mzoch/data/datasets/crypppp/extracted/10017/ground_truth/empiar-10017_particles_selected.star"
     )
 
-    ds = StarfileDataset([STARFILE])
+    ds = MicrographDataset([STARFILE])
     print(len(ds))
 
     iter(ds)
